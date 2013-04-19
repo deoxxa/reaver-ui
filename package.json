@@ -2,7 +2,7 @@
   "name": "reaver-ui",
   "version": "0.0.0",
   "description": "Hacky UI to wrap around reaver-wps",
-  "main": "app.js",
+  "main": "reaver-ui.js",
   "dependencies": {
     "legobox": "~0.1.0"
   },
