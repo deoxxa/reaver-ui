@@ -1,0 +1,26 @@
+{
+  "name": "reaver-ui",
+  "version": "0.0.0",
+  "description": "Hacky UI to wrap around reaver-wps",
+  "main": "app.js",
+  "dependencies": {
+    "legobox": "~0.1.0"
+  },
+  "bin": {
+    "reaver-ui": "./reaver-ui.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/deoxxa/reaver-ui.git"
+  },
+  "keywords": [
+    "reaver",
+    "wpa",
+    "crack",
+    "ui",
+    "gui",
+    "console"
+  ],
+  "author": "Conrad Pankoff <deoxxa@fknsrs.biz> (http://www.fknsrs.biz/)",
+  "license": "BSD"
+}
