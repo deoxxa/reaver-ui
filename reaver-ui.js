@@ -4,6 +4,14 @@ var Legobox = require("legobox"),
     stream = require("stream"),
     spawn = require("child_process").spawn;
 
+if (process.argv.length < 4) {
+  console.warn("Usage: reaver-ui <interface> <channel>");
+  process.exit(1);
+}
+
+var interface = process.argv[2],
+    channel = process.argv[3];
+
 var LineSplitter = function LineSplitter(options) {
   options = options || {};
 
@@ -64,6 +72,7 @@ Reaver.prototype._write = function _write(input, encoding, done) {
   var matches;
 
   if (matches = input.match(/Associated with .+? \(ESSID: (.+)\)/)) {
+    this.emit("associated");
     this.emit("essid", matches[1]);
   }
 
@@ -103,9 +112,7 @@ setInterval(function() {
 }, 1000);
 container.addWidget(current_time, {height: 2});
 
-var targets = process.argv.slice(2);
-
-targets.forEach(function(target) {
+var addTarget = function addTarget(target) {
   var outer = new Legobox.Container({split: Legobox.Container.SPLIT.vertical}, {height: 2});
 
   var info_container = new Legobox.Container({split: Legobox.Container.SPLIT.horizontal}, {height: 1});
@@ -133,17 +140,20 @@ targets.forEach(function(target) {
   var lines = [];
   var text = new Legobox.Text({content: "", align: "left"});
 
-  container.addWidget(outer, {height: 2});
-
   var reaver = new Reaver({
     args: [
       {
         "-vv": null,
-        "-i": "mon0",
-        "-c": "11",
+        "-i": interface,
+        "-c": channel,
         "-b": target,
       },
     ],
+  });
+
+  reaver.once("essid", function() {
+    container.addWidget(outer, {height: 2});
+    container.reflow();
   });
 
   reaver.on("line", function(line) {
@@ -200,6 +210,56 @@ targets.forEach(function(target) {
     current_label.content = key.toString();
     current_label.reflow();
   });
+};
+
+// fire up airodump to look for new targets
+
+function extractInformation() {
+  var s = new stream.Transform({objectMode: true});
+
+  s.cache = {};
+
+  s._transform = function _transform(input, encoding, done) {
+    var matches = Buffer(input, encoding).toString().match(/([0-9A-F:]+)\s+([0-9\-]+)\s+([0-9\-]+)\s+([0-9\-]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.+?)\s+(WPA.+?)\s+(.+?)\s+(.+?)\s+/);
+
+    if (matches) {
+      var d = {
+        bssid: matches[1],
+        power: parseInt(matches[2], 10),
+        rxq: parseInt(matches[3], 10),
+        beacons: parseInt(matches[4], 10),
+        data: parseInt(matches[5], 10),
+        channel: parseInt(matches[7], 10),
+        speed: parseInt(matches[8], 10),
+        encryption: matches[9],
+        cipher: matches[10],
+        auth: matches[11],
+      };
+
+      if (!this.cache[d.bssid] || d.beacons !== this.cache[d.bssid].beacons || d.data !== this.cache[d.bssid].data) {
+        this.push(d);
+      }
+
+      this.cache[d.bssid] = d;
+    }
+
+    return done();
+  };
+
+  return s;
+}
+
+var ad = spawn("airodump-ng", ["-c", channel, interface]);
+
+var targets = {};
+ad.stderr.pipe(new LineSplitter()).pipe(extractInformation()).on("readable", function() {
+  var record;
+  while (record = this.read()) {
+    if (!targets[record.bssid]) {
+      targets[record.bssid] = true;
+      addTarget(record.bssid);
+    }
+  }
 });
 
 // force initial (re)flow
